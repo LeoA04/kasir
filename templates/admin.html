@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <title>Admin Dashboard - Smart POS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -33,7 +34,10 @@
                     <input type="number" id="p-price" class="form-control mb-2" placeholder="Harga">
                     <input type="number" id="p-stock" class="form-control mb-2" placeholder="Stok">
                     <input type="text" id="p-img" class="form-control mb-2" placeholder="Emoji (🍕)">
-                    <select id="p-cat" class="form-select mb-3"><option value="makanan">Makanan</option><option value="minuman">Minuman</option></select>
+                    <select id="p-cat" class="form-select mb-3">
+                        <option value="makanan">Makanan</option>
+                        <option value="minuman">Minuman</option>
+                    </select>
                     <button class="btn btn-primary w-100" onclick="addProduct()">Simpan Produk</button>
                 </div>
 
@@ -46,7 +50,8 @@
                         {% for pr in promos %}
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             {{ pr.code }} ({{ pr.discount_percent }}%)
-                            <button class="btn btn-sm btn-danger py-0" onclick="deletePromo('{{ pr.id }}')">Hapus</button>
+                            <button class="btn btn-sm btn-danger py-0"
+                                onclick="deletePromo('{{ pr.id }}')">Hapus</button>
                         </div>
                         {% endfor %}
                     </div>
@@ -56,31 +61,69 @@
             <div class="col-md-8">
                 <div class="card shadow-sm p-4 mb-4">
                     <h5 class="fw-bold">📦 Inventaris & Stok</h5>
-                    <table class="table table-sm align-middle">
-                        <thead><tr><th>Menu</th><th>Stok</th><th>Aksi</th></tr></thead>
-                        <tbody>
-                            {% for p in products %}
-                            <tr>
-                                <td>{{ p.img }} {{ p.name }}</td>
-                                <td><input type="number" id="stk-{{ p.id }}" class="form-control form-control-sm d-inline" value="{{ p.stock }}" style="width:70px"></td>
-                                <td>
-                                    <button class="btn btn-sm btn-success" onclick="updateStock('{{ p.id }}')">Update</button>
-                                    <button class="btn btn-sm btn-danger" onclick="deleteProduct('{{ p.id }}')">Hapus</button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+
+                    <!-- Search bar + tombol Search + Reset -->
+                    <div class="mb-3 mt-2 d-flex">
+                        <input type="text" id="stock-search" class="form-control form-control-sm me-2"
+                            placeholder="Cari produk...">
+                        <button class="btn btn-sm btn-primary me-2" onclick="searchStock()">Search</button>
+                        <button class="btn btn-sm btn-secondary" onclick="resetSearch()">X</button>
+                    </div>
+
+                    <!-- Hasil search muncul di sini -->
+                    <div id="search-results" class="mb-2"></div>
+
+                    <!-- Tabel dengan scroll -->
+                    <div style="max-height: 200px; overflow-y: auto;">
+                        <table class="table table-sm align-middle" id="stock-table">
+                            <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                <tr>
+                                    <th>Menu</th>
+                                    <th>Stok</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in products %}
+                                <tr>
+                                    <td>{{ p.img }} {{ p.name }}</td>
+                                    <td>
+                                        <input type="number" id="stk-{{ p.id }}"
+                                            class="form-control form-control-sm d-inline" value="{{ p.stock }}"
+                                            style="width:70px">
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-success"
+                                            onclick="updateStock('{{ p.id }}')">Update</button>
+                                        <button class="btn btn-sm btn-danger"
+                                            onclick="deleteProduct('{{ p.id }}')">Hapus</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
+
                 <div class="card shadow-sm p-4">
-                    <div class="d-flex justify-content-between">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
                         <h5 class="fw-bold">📊 Laporan Hari Ini</h5>
                         <h5 class="text-success">Omzet: Rp {{ "{:,}".format(revenue) }}</h5>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm small">
-                            <thead><tr><th>Waktu</th><th>Subtotal</th><th>Promo</th><th>Final</th><th>Bayar</th><th>Kasir</th></tr></thead>
+                    <div id="report-results" class="mb-2"></div>
+                    <div style="max-height: 320px; overflow-y: auto;">
+                        <table class="table table-sm small" id="report-table">
+                            <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                <tr>
+                                    <th>Waktu</th>
+                                    <th>Subtotal</th>
+                                    <th>Promo</th>
+                                    <th>Final</th>
+                                    <th>Bayar</th>
+                                    <th>Kasir</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 {% for h in histories %}
                                 <tr>
@@ -103,26 +146,68 @@
     <script>
         function addProduct() {
             const data = { name: document.getElementById('p-name').value, price: parseInt(document.getElementById('p-price').value), stock: parseInt(document.getElementById('p-stock').value), category: document.getElementById('p-cat').value, img: document.getElementById('p-img').value };
-            fetch('/api/admin/add_product', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)}).then(() => location.reload());
+            fetch('/api/admin/add_product', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(() => location.reload());
         }
         function updateStock(id) {
             const val = document.getElementById(`stk-${id}`).value;
-            fetch('/api/admin/update_stock', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: id, new_stock: parseInt(val)})})
-            .then(res => res.json()).then(data => {
-                if(data.success) alert('Stok Diperbarui');
-                else alert(data.error); // Menampilkan error jika stok < 0
-            });
+            fetch('/api/admin/update_stock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, new_stock: parseInt(val) }) })
+                .then(res => res.json()).then(data => {
+                    if (data.success) alert('Stok Diperbarui');
+                    else alert(data.error); // Menampilkan error jika stok < 0
+                });
         }
         function deleteProduct(id) {
-            if(confirm('Hapus menu?')) fetch('/api/admin/delete_product', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id})}).then(() => location.reload());
+            if (confirm('Hapus menu?')) fetch('/api/admin/delete_product', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).then(() => location.reload());
         }
         function addPromo() {
             const data = { code: document.getElementById('promo-code').value, discount: parseInt(document.getElementById('promo-disc').value) };
-            fetch('/api/admin/add_promo', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)}).then(() => location.reload());
+            fetch('/api/admin/add_promo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(() => location.reload());
         }
         function deletePromo(id) {
-            fetch('/api/admin/delete_promo', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id})}).then(() => location.reload());
+            fetch('/api/admin/delete_promo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).then(() => location.reload());
+        }
+        function searchStock() {
+            const input = document.getElementById("stock-search").value.toLowerCase().trim();
+            const table = document.getElementById("stock-table");
+            const trs = table.getElementsByTagName("tr");
+            const resultsDiv = document.getElementById("search-results");
+            resultsDiv.innerHTML = ""; // reset hasil search
+
+            if (!input) {
+                // jika kosong, tampilkan semua
+                for (let i = 1; i < trs.length; i++) trs[i].style.display = "";
+                return;
+            }
+
+            let seen = new Set();
+            let matchCount = 0;
+
+            for (let i = 1; i < trs.length; i++) { // skip header
+                const tds = trs[i].getElementsByTagName("td");
+                const name = tds[0].innerText.toLowerCase();
+
+                if (name.includes(input)) {
+                    trs[i].style.display = "";
+                    if (!seen.has(name)) {
+                        resultsDiv.innerHTML += `<div>Hasil: ${tds[0].innerText}</div>`;
+                        seen.add(name);
+                        matchCount++;
+                    }
+                } else {
+                    trs[i].style.display = "none";
+                }
+            }
+
+            if (matchCount === 0) resultsDiv.innerHTML = "<div class='text-muted'>Tidak ada hasil</div>";
+        }
+        function resetSearch() {
+            document.getElementById("stock-search").value = "";
+            const table = document.getElementById("stock-table");
+            const trs = table.getElementsByTagName("tr");
+            for (let i = 1; i < trs.length; i++) trs[i].style.display = "";
+            document.getElementById("search-results").innerHTML = "";
         }
     </script>
 </body>
+
 </html>

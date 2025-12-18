@@ -15,7 +15,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), default='user')  # default role baru
+    role = db.Column(db.String(20), default='user') 
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -33,11 +33,11 @@ class Promo(db.Model):
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     timestamp = db.Column(db.DateTime, default=datetime.now)
-    subtotal = db.Column(db.Integer) # Harga sebelum diskon
-    promo_info = db.Column(db.String(100)) # Nama promo & %
-    total = db.Column(db.Integer) # Harga setelah diskon
-    amount_paid = db.Column(db.Integer) # Uang yang dibayarkan
-    change = db.Column(db.Integer) # Kembalian
+    subtotal = db.Column(db.Integer)
+    promo_info = db.Column(db.String(100))
+    total = db.Column(db.Integer) 
+    amount_paid = db.Column(db.Integer) 
+    change = db.Column(db.Integer)
     cashier_name = db.Column(db.String(50))
 
 temp_carts = {} 
@@ -60,7 +60,6 @@ def index():
     elif role == 'kasir':
         return render_template('index.html', products=Product.query.all(), user=session['username'])
     elif role == 'user':
-        # Tampilkan alert JS dan redirect ke halaman login atau user dashboard
         return '''
         <script>
             alert("Anda login sebagai user biasa. Mohon hubungi admin untuk akses kasir!");
