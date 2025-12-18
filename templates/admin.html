@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <title>Admin Dashboard - Smart POS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container"><span class="navbar-brand fw-bold">🛠 ADMIN DASHBOARD</span><a href="/logout" class="btn btn-outline-danger btn-sm">Keluar</a></div>
+    </nav>
+
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm p-4 mb-4">
+                    <h5 class="fw-bold">➕ Tambah Menu</h5>
+                    <input type="text" id="p-name" class="form-control mb-2" placeholder="Nama Menu">
+                    <input type="number" id="p-price" class="form-control mb-2" placeholder="Harga">
+                    <input type="number" id="p-stock" class="form-control mb-2" placeholder="Stok">
+                    <input type="text" id="p-img" class="form-control mb-2" placeholder="Emoji (🍕)">
+                    <select id="p-cat" class="form-select mb-3"><option value="makanan">Makanan</option><option value="minuman">Minuman</option></select>
+                    <button class="btn btn-primary w-100" onclick="addProduct()">Simpan Produk</button>
+                </div>
+
+                <div class="card shadow-sm p-4">
+                    <h5 class="fw-bold">🎫 Kelola Promo</h5>
+                    <input type="text" id="promo-code" class="form-control mb-2" placeholder="Kode Promo">
+                    <input type="number" id="promo-disc" class="form-control mb-3" placeholder="Diskon (%)">
+                    <button class="btn btn-success w-100 mb-3" onclick="addPromo()">Tambah Promo</button>
+                    <div class="list-group small">
+                        {% for pr in promos %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ pr.code }} ({{ pr.discount_percent }}%)
+                            <button class="btn btn-sm btn-danger py-0" onclick="deletePromo('{{ pr.id }}')">Hapus</button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card shadow-sm p-4 mb-4">
+                    <h5 class="fw-bold">📦 Inventaris & Stok</h5>
+                    <table class="table table-sm align-middle">
+                        <thead><tr><th>Menu</th><th>Stok</th><th>Aksi</th></tr></thead>
+                        <tbody>
+                            {% for p in products %}
+                            <tr>
+                                <td>{{ p.img }} {{ p.name }}</td>
+                                <td><input type="number" id="stk-{{ p.id }}" class="form-control form-control-sm d-inline" value="{{ p.stock }}" style="width:70px"></td>
+                                <td>
+                                    <button class="btn btn-sm btn-success" onclick="updateStock('{{ p.id }}')">Update</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteProduct('{{ p.id }}')">Hapus</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card shadow-sm p-4">
+                    <div class="d-flex justify-content-between">
+                        <h5 class="fw-bold">📊 Laporan Hari Ini</h5>
+                        <h5 class="text-success">Omzet: Rp {{ "{:,}".format(revenue) }}</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm small">
+                            <thead><tr><th>Waktu</th><th>Subtotal</th><th>Promo</th><th>Final</th><th>Bayar</th><th>Kasir</th></tr></thead>
+                            <tbody>
+                                {% for h in histories %}
+                                <tr>
+                                    <td>{{ h.timestamp.strftime('%H:%M') }}</td>
+                                    <td>Rp {{ "{:,}".format(h.subtotal) }}</td>
+                                    <td>{{ h.promo_info }}</td>
+                                    <td class="fw-bold">Rp {{ "{:,}".format(h.total) }}</td>
+                                    <td>Rp {{ "{:,}".format(h.amount_paid) }}</td>
+                                    <td>{{ h.cashier_name }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function addProduct() {
+            const data = { name: document.getElementById('p-name').value, price: parseInt(document.getElementById('p-price').value), stock: parseInt(document.getElementById('p-stock').value), category: document.getElementById('p-cat').value, img: document.getElementById('p-img').value };
+            fetch('/api/admin/add_product', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)}).then(() => location.reload());
+        }
+        function updateStock(id) {
+            const val = document.getElementById(`stk-${id}`).value;
+            fetch('/api/admin/update_stock', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: id, new_stock: parseInt(val)})})
+            .then(res => res.json()).then(data => {
+                if(data.success) alert('Stok Diperbarui');
+                else alert(data.error); // Menampilkan error jika stok < 0
+            });
+        }
+        function deleteProduct(id) {
+            if(confirm('Hapus menu?')) fetch('/api/admin/delete_product', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id})}).then(() => location.reload());
+        }
+        function addPromo() {
+            const data = { code: document.getElementById('promo-code').value, discount: parseInt(document.getElementById('promo-disc').value) };
+            fetch('/api/admin/add_promo', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)}).then(() => location.reload());
+        }
+        function deletePromo(id) {
+            fetch('/api/admin/delete_promo', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id})}).then(() => location.reload());
+        }
+    </script>
+</body>
+</html>

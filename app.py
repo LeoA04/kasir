@@ -1,160 +1,229 @@
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
-from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime, date
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "kunci_rahasia_stqa_2025" 
+app.secret_key = "kunci_rahasia_stqa_2025"
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smart_pos.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# --- 1. DATA PRODUK (Ditambahkan Kategori) ---
-products = {
-    "1": {"id": "1", "name": "Kopi Espresso", "price": 15000, "img": "☕", "category": "minuman"},
-    "2": {"id": "2", "name": "Roti Bakar", "price": 12000, "img": "🍞", "category": "makanan"},
-    "3": {"id": "3", "name": "Teh Manis", "price": 5000, "img": "🍵", "category": "minuman"},
-    "4": {"id": "4", "name": "Sandwich", "price": 25000, "img": "🥪", "category": "makanan"},
-    "5": {"id": "5", "name": "Nasi Goreng", "price": 20000, "img": "🍳", "category": "makanan"},
-    "6": {"id": "6", "name": "Mie Ayam", "price": 15000, "img": "🍜", "category": "makanan"},
-    "7": {"id": "7", "name": "Bakso Sapi", "price": 18000, "img": "🥣", "category": "makanan"},
-    "8": {"id": "8", "name": "Sate Ayam", "price": 25000, "img": "🍢", "category": "makanan"},
-    "9": {"id": "9", "name": "Ayam Geprek", "price": 17000, "img": "🍗", "category": "makanan"},
-    "10": {"id": "10", "name": "Jus Jeruk", "price": 10000, "img": "🍊", "category": "minuman"},
-    "11": {"id": "11", "name": "Es Teh", "price": 5000, "img": "🧊", "category": "minuman"},
-    "12": {"id": "12", "name": "Soda Gembira", "price": 12000, "img": "🥤", "category": "minuman"},
-    "13": {"id": "13", "name": "Pisang Goreng", "price": 10000, "img": "🍌", "category": "makanan"},
-    "14": {"id": "14", "name": "Kentang Goreng", "price": 15000, "img": "🍟", "category": "makanan"}
-}
+db = SQLAlchemy(app)
 
-# --- 2. DATA PROMO ---
-PROMO_CODES = {"HEMAT10": 0.10, "MERDEKA20": 0.20}
+# --- DATABASE MODELS ---
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(10), default='user')
 
-# --- 3. DATABASE MOCK (In-Memory) ---
-users = {"admin": "admin123"} 
-user_carts = {}    
-user_histories = {} 
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    price = db.Column(db.Integer, nullable=False)
+    img = db.Column(db.String(10)) 
+    category = db.Column(db.String(20))
+    stock = db.Column(db.Integer, default=0)
 
-# --- 4. ROUTE HALAMAN ---
+class Promo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(20), unique=True, nullable=False)
+    discount_percent = db.Column(db.Integer, nullable=False)
+
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.now)
+    subtotal = db.Column(db.Integer) # Harga sebelum diskon
+    promo_info = db.Column(db.String(100)) # Nama promo & %
+    total = db.Column(db.Integer) # Harga setelah diskon
+    amount_paid = db.Column(db.Integer) # Uang yang dibayarkan
+    change = db.Column(db.Integer) # Kembalian
+    cashier_name = db.Column(db.String(50))
+
+temp_carts = {} 
+
+with app.app_context():
+    db.create_all()
+    if not User.query.filter_by(username='admin').first():
+        admin = User(username='admin', password=generate_password_hash('admin123'), role='admin')
+        db.session.add(admin)
+        db.session.commit()
+
+# --- ROUTES ---
 @app.route('/')
 def index():
-    if 'username' not in session:
-        return render_template('auth.html')
-    return render_template('index.html', products=products, user=session['username'])
+    if 'username' not in session: return redirect(url_for('login_page'))
+    if session.get('role') == 'admin': return redirect(url_for('admin_dashboard'))
+    return render_template('index.html', products=Product.query.all(), user=session['username'])
 
-# --- 5. API AUTHENTICATION ---
+@app.route('/login')
+def login_page(): return render_template('auth.html')
+
+@app.route('/admin')
+def admin_dashboard():
+    if session.get('role') != 'admin': return redirect(url_for('index'))
+    prods = Product.query.all()
+    promos = Promo.query.all()
+    today = date.today()
+    histories = Transaction.query.filter(db.func.date(Transaction.timestamp) == today).all()
+    total_revenue = sum(h.total for h in histories)
+    return render_template('admin.html', products=prods, promos=promos, histories=histories, revenue=total_revenue)
+
+# --- API AUTH ---
 @app.route('/api/signup', methods=['POST'])
 def signup():
     data = request.json
-    username = data.get('username', '').strip()
-    password = data.get('password', '').strip()
-    
-    if not username or not password:
-        return jsonify({"message": "Username dan Password tidak boleh kosong!"}), 400
-    if username in users:
-        return jsonify({"message": "Username sudah terdaftar!"}), 400
-        
-    users[username] = password
-    user_carts[username] = {}
-    user_histories[username] = []
-    return jsonify({"message": "Signup Berhasil, silakan Login"}), 201
+    u, p = data.get('username', '').strip(), data.get('password', '').strip()
+    if not u or not p: return jsonify({"message": "Input kosong!"}), 400
+    if User.query.filter_by(username=u).first(): return jsonify({"message": "Username sudah ada!"}), 400
+    db.session.add(User(username=u, password=generate_password_hash(p), role='user'))
+    db.session.commit()
+    return jsonify({"message": "Signup Berhasil"}), 201
 
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
-    username = data.get('username', '').strip()
-    password = data.get('password', '').strip()
-    
-    if not username or not password:
-        return jsonify({"message": "Username dan Password wajib diisi!"}), 400
-    
-    if users.get(username) == password:
-        session['username'] = username
-        if username not in user_carts: user_carts[username] = {}
-        if username not in user_histories: user_histories[username] = []
-        return jsonify({"message": "Login Sukses"}), 200
-        
-    return jsonify({"message": "Username atau Password salah!"}), 401
+    user = User.query.filter_by(username=data.get('username')).first()
+    if user and check_password_hash(user.password, data.get('password')):
+        session['username'], session['role'] = user.username, user.role
+        return jsonify({"message": "Login Sukses", "role": user.role}), 200
+    return jsonify({"message": "Username/Password salah!"}), 401
 
 @app.route('/logout')
 def logout():
-    session.pop('username', None)
-    return redirect(url_for('index'))
+    session.clear()
+    return redirect(url_for('login_page'))
 
-# --- 6. API KERANJANG ---
+# --- API KASIR & PROMO ---
 @app.route('/api/cart', methods=['GET'])
 def get_cart():
     user = session.get('username')
-    if not user: return jsonify({"error": "Unauthorized"}), 401
-    
-    cart = user_carts.get(user, {})
-    details = []
-    total = 0
+    cart = temp_carts.get(user, {})
+    items, total = [], 0
     for p_id, qty in cart.items():
-        p = products[p_id]
-        subtotal = p['price'] * qty
-        details.append({"id": p_id, "name": p['name'], "price": p['price'], "quantity": qty, "subtotal": subtotal})
-        total += subtotal
-    return jsonify({"items": details, "total": total})
+        p = Product.query.get(int(p_id))
+        if p:
+            sub = p.price * qty
+            items.append({"id": p.id, "name": p.name, "price": p.price, "quantity": qty, "subtotal": sub})
+            total += sub
+    return jsonify({"items": items, "total": total})
 
 @app.route('/api/cart/add', methods=['POST'])
 def add_to_cart():
-    user = session.get('username')
-    if not user: return jsonify({"error": "Unauthorized"}), 401
-    
-    p_id = request.json.get('product_id')
-    if p_id in products:
-        user_carts[user][p_id] = user_carts[user].get(p_id, 0) + 1
-        return jsonify({"success": True}), 200
-    return jsonify({"error": "Produk tidak ditemukan"}), 404
+    p_id, user = str(request.json.get('product_id')), session['username']
+    product = Product.query.get(int(p_id))
+    if user not in temp_carts: temp_carts[user] = {}
+    curr = temp_carts[user].get(p_id, 0)
+    if product and product.stock > curr:
+        temp_carts[user][p_id] = curr + 1
+        return jsonify({"success": True})
+    return jsonify({"error": "Stok tidak cukup"}), 400
 
 @app.route('/api/cart/reduce', methods=['POST'])
 def reduce_from_cart():
-    user = session.get('username')
-    if not user: return jsonify({"error": "Unauthorized"}), 401
-    
-    p_id = request.json.get('product_id')
-    cart = user_carts[user]
-    if p_id in cart:
-        if cart[p_id] > 1: cart[p_id] -= 1
-        else: cart.pop(p_id)
-        return jsonify({"success": True}), 200
-    return jsonify({"error": "Item tidak ada"}), 404
+    p_id, user = str(request.json.get('product_id')), session.get('username')
+    if user in temp_carts and p_id in temp_carts[user]:
+        if temp_carts[user][p_id] > 1: temp_carts[user][p_id] -= 1
+        else: del temp_carts[user][p_id]
+        return jsonify({"success": True})
+    return jsonify({"error": "Item tidak ditemukan"}), 404
 
-# --- 7. API CHECKOUT & HISTORY ---
+@app.route('/api/promos')
+def get_promos():
+    return jsonify([{"code": p.code, "discount": p.discount_percent} for p in Promo.query.all()])
+
 @app.route('/api/checkout', methods=['POST'])
 def checkout():
     user = session.get('username')
-    if not user: return jsonify({"error": "Unauthorized"}), 401
-    
+    cart = temp_carts.get(user, {})
     data = request.json
-    paid = data.get('amount_paid', 0)
-    promo = data.get('promo_code', "").upper()
+    paid, promo_code = data.get('amount_paid'), data.get('promo_code')
+    if not cart: return jsonify({"message": "Keranjang kosong"}), 400
     
-    cart = user_carts[user]
-    if not cart:
-        return jsonify({"status": "FAILED", "message": "Keranjang masih kosong!"}), 400
-
-    total = sum(products[p_id]['price'] * qty for p_id, qty in cart.items())
+    subtotal = sum(Product.query.get(int(pid)).price * qty for pid, qty in cart.items())
+    disc_val, promo_text = 0, "-"
     
-    discount = 0
-    if promo in PROMO_CODES:
-        discount = total * PROMO_CODES[promo]
-        total -= discount
-
-    if paid >= total:
-        change = paid - total
-        user_histories[user].insert(0, {
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "total": total,
-            "discount": discount,
-            "change": change
-        })
-        user_carts[user] = {} 
-        return jsonify({"status": "SUCCESS", "change": change, "discount": discount}), 200
-    else:
-        return jsonify({"status": "FAILED", "message": f"Uang kurang Rp {(total - paid):,}"}), 400
+    if promo_code:
+        p_obj = Promo.query.filter_by(code=promo_code).first()
+        if p_obj:
+            disc_val = int(subtotal * (p_obj.discount_percent / 100))
+            promo_text = f"{p_obj.code} ({p_obj.discount_percent}%)"
+    
+    final = subtotal - disc_val
+    if not paid or int(paid) < final: return jsonify({"message": "Uang tunai kurang"}), 400
+    
+    change = int(paid) - final
+    for pid, qty in cart.items(): Product.query.get(int(pid)).stock -= qty
+    
+    new_tx = Transaction(
+        subtotal=subtotal,
+        promo_info=promo_text,
+        total=final,
+        amount_paid=int(paid),
+        change=change,
+        cashier_name=user
+    )
+    db.session.add(new_tx)
+    db.session.commit()
+    temp_carts[user] = {}
+    return jsonify({"status": "SUCCESS", "change": change, "discount": disc_val})
 
 @app.route('/api/history')
-def get_history():
+def get_user_history():
     user = session.get('username')
-    if not user: return jsonify({"error": "Unauthorized"}), 401
-    return jsonify(user_histories.get(user, []))
+    hists = Transaction.query.filter_by(cashier_name=user).order_by(Transaction.timestamp.desc()).all()
+    return jsonify([{
+        "time": h.timestamp.strftime('%Y-%m-%d %H:%M'),
+        "subtotal": h.subtotal,
+        "promo": h.promo_info,
+        "total": h.total,
+        "paid": h.amount_paid,
+        "change": h.change
+    } for h in hists])
+
+# --- API ADMIN ---
+@app.route('/api/admin/add_product', methods=['POST'])
+def add_product():
+    d = request.json
+    db.session.add(Product(name=d['name'], price=d['price'], img=d['img'], category=d['category'], stock=d['stock']))
+    db.session.commit()
+    return jsonify({"success": True})
+
+@app.route('/api/admin/delete_product', methods=['POST'])
+def delete_product():
+    p = Product.query.get(request.json['id'])
+    if p:
+        db.session.delete(p)
+        db.session.commit()
+        return jsonify({"success": True})
+    return jsonify({"error": "Gagal"}), 404
+
+@app.route('/api/admin/update_stock', methods=['POST'])
+def update_stock():
+    p = Product.query.get(request.json['id'])
+    new_stk = request.json.get('new_stock', 0)
+    # PERBAIKAN: Validasi stok tidak boleh < 0
+    if new_stk < 0:
+        return jsonify({"error": "Stok tidak boleh kurang dari 0"}), 400
+    p.stock = new_stk
+    db.session.commit()
+    return jsonify({"success": True})
+
+@app.route('/api/admin/add_promo', methods=['POST'])
+def add_promo():
+    d = request.json
+    db.session.add(Promo(code=d['code'].upper(), discount_percent=d['discount']))
+    db.session.commit()
+    return jsonify({"success": True})
+
+@app.route('/api/admin/delete_promo', methods=['POST'])
+def delete_promo():
+    p = Promo.query.get(request.json['id'])
+    if p:
+        db.session.delete(p)
+        db.session.commit()
+        return jsonify({"success": True})
+    return jsonify({"error": "Gagal"}), 404
 
 if __name__ == '__main__':
     app.run(debug=True)
