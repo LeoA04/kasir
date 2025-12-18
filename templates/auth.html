@@ -1,23 +1,47 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-    <title>Login POS</title>
+    <meta charset="UTF-8">
+    <title>Login POS - Smart POS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; }
+        .auth-card { max-width: 400px; border-radius: 15px; border: none; }
+    </style>
 </head>
-<body class="bg-light d-flex align-items-center" style="height: 100vh;">
-    <div class="container" style="max-width: 400px;">
-        <div class="card shadow p-4 text-center">
+<body class="d-flex align-items-center" style="height: 100vh;">
+    <div class="container">
+        <div class="card shadow auth-card mx-auto p-4 text-center">
             <h2 class="fw-bold mb-4">🚀 Smart POS</h2>
-            <input type="text" id="user" class="form-control mb-2" placeholder="Username">
-            <input type="password" id="pass" class="form-control mb-3" placeholder="Password">
-            <button class="btn btn-primary w-100 mb-2" onclick="handleAuth('/api/login')">Login</button>
-            <button class="btn btn-outline-secondary w-100" onclick="handleAuth('/api/signup')">Daftar Akun Baru</button>
+            
+            <div class="mb-2 text-start">
+                <label class="small fw-bold">Username</label>
+                <input type="text" id="user" class="form-control" placeholder="Masukkan username">
+            </div>
+            <div class="mb-4 text-start">
+                <label class="small fw-bold">Password</label>
+                <input type="password" id="pass" class="form-control" placeholder="Masukkan password">
+            </div>
+
+            <button class="btn btn-primary w-100 mb-3 py-2 fw-bold" onclick="handleAuth('/api/login')">Login</button>
+            
+            <div class="border-top pt-3">
+                <p class="small text-muted mb-2">Belum memiliki akun?</p>
+                <a href="/signup" class="btn btn-outline-secondary w-100">Daftar Akun Baru</a>
+            </div>
         </div>
     </div>
+
     <script>
         function handleAuth(url) {
             const u = document.getElementById('user').value;
             const p = document.getElementById('pass').value;
+
+            if (!u || !p) {
+                alert("Silakan isi username dan password!");
+                return;
+            }
+
             fetch(url, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -25,10 +49,17 @@
             })
             .then(res => res.json().then(data => {
                 if (res.ok) {
-                    if (url.includes('signup')) alert(data.message);
-                    else window.location.href = data.role === 'admin' ? '/admin' : '/';
-                } else alert(data.message);
-            }));
+                    // Jika login berhasil, arahkan berdasarkan role pengguna
+                    window.location.href = data.role === 'admin' ? '/admin' : '/';
+                } else {
+                    // Tampilkan pesan error jika login gagal
+                    alert(data.message);
+                }
+            }))
+            .catch(err => {
+                console.error("Error:", err);
+                alert("Terjadi kesalahan pada server.");
+            });
         }
     </script>
 </body>

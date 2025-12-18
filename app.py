@@ -59,6 +59,9 @@ def index():
 @app.route('/login')
 def login_page(): return render_template('auth.html')
 
+@app.route('/signup')
+def signup_page(): return render_template('signup.html')
+
 @app.route('/admin')
 def admin_dashboard():
     if session.get('role') != 'admin': return redirect(url_for('index'))
