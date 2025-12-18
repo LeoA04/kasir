@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Kasir</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light d-flex align-items-center" style="height: 100vh;">
+    <div class="container" style="max-width: 400px;">
+        <div class="card shadow p-4 text-center">
+            <h2 class="fw-bold mb-4">🚀 Masuk Kasir</h2>
+            <input type="text" id="user" class="form-control mb-2" placeholder="Username">
+            <input type="password" id="pass" class="form-control mb-3" placeholder="Password">
+            <button class="btn btn-primary w-100 mb-2" onclick="handleAuth('/api/login')">Login</button>
+            <button class="btn btn-outline-secondary w-100" onclick="handleAuth('/api/signup')">Daftar Akun Baru</button>
+            <div id="err" class="mt-3 text-danger small"></div>
+        </div>
+    </div>
+    <script>
+        function handleAuth(url) {
+            const u = document.getElementById('user').value;
+            const p = document.getElementById('pass').value;
+            fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: u, password: p})
+            }).then(res => res.ok ? location.reload() : res.json().then(d => alert(d.message)));
+        }
+    </script>
+</body>
+</html>
