@@ -8,15 +8,34 @@
     <div class="container" style="max-width: 400px;">
         <div class="card shadow p-4">
             <h2 class="fw-bold mb-4 text-center">📝 Daftar Akun</h2>
+
+            <!-- Username -->
             <div class="mb-2">
                 <label class="small fw-bold">Username</label>
                 <input type="text" id="user" class="form-control" placeholder="Masukkan username">
             </div>
-            <div class="mb-4">
+
+            <!-- Password -->
+            <div class="mb-2">
                 <label class="small fw-bold">Password</label>
-                <input type="password" id="pass" class="form-control" placeholder="Masukkan password">
+                <div class="input-group">
+                    <input type="password" id="pass" class="form-control" placeholder="Masukkan password">
+                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('pass', this)">🙈</button>
+                </div>
+                <small class="text-muted">Minimal 6 karakter</small>
             </div>
+
+            <!-- Konfirmasi Password -->
+            <div class="mb-4">
+                <label class="small fw-bold">Konfirmasi Password</label>
+                <div class="input-group">
+                    <input type="password" id="confirm-pass" class="form-control" placeholder="Ulangi password">
+                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('confirm-pass', this)">🙈</button>
+                </div>
+            </div>
+
             <button class="btn btn-success w-100 mb-3" onclick="handleSignup()">Daftar Sekarang</button>
+
             <div class="text-center">
                 <small>Sudah punya akun? <a href="/login" class="text-decoration-none">Login di sini</a></small>
             </div>
@@ -24,19 +43,51 @@
     </div>
 
     <script>
-        function handleSignup() {
-            const u = document.getElementById('user').value;
-            const p = document.getElementById('pass').value;
+        // Show / Hide password
+        function togglePassword(fieldId, btn) {
+            const input = document.getElementById(fieldId);
+            if (input.type === "password") {
+                input.type = "text";
+                btn.innerText = "👁";
+            } else {
+                input.type = "password";
+                btn.innerText = "🙈";
+            }
+        }
 
-            if(!u || !p) {
-                alert("Username dan Password tidak boleh kosong!");
+        // Signup function with validation
+        function handleSignup() {
+            const u = document.getElementById('user').value.trim();
+            const p = document.getElementById('pass').value;
+            const cp = document.getElementById('confirm-pass').value;
+
+            // Validasi input kosong
+            if (!u || !p || !cp) {
+                alert("Semua field wajib diisi!");
                 return;
             }
 
+            // Validasi minimal panjang password
+            if (p.length < 6) {
+                alert("Password minimal 6 karakter!");
+                return;
+            }
+
+            // Validasi konfirmasi password
+            if (p !== cp) {
+                alert("Password dan konfirmasi password tidak sama!");
+                return;
+            }
+
+            // Kirim data ke backend
             fetch('/api/signup', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p})
+                body: JSON.stringify({
+                    username: u,
+                    password: p,
+                    confirm_password: cp
+                })
             })
             .then(res => res.json().then(data => {
                 if (res.ok) {
@@ -45,7 +96,11 @@
                 } else {
                     alert(data.message);
                 }
-            }));
+            }))
+            .catch(err => {
+                console.error("Error:", err);
+                alert("Terjadi kesalahan pada server.");
+            });
         }
     </script>
 </body>

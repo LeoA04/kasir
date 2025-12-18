@@ -12,12 +12,22 @@
         .cart-sticky { position: sticky; top: 20px; background: white; border-radius: 20px; padding: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); min-height: 85vh; }
     </style>
 </head>
+
+<script>
+    function confirmLogout() {
+        if (confirm("Apakah Anda yakin ingin logout?")) {
+            window.location.href = "/logout";
+        }
+    }
+</script>
+
 <body>
 
 <nav class="navbar navbar-dark bg-dark mb-4">
     <div class="container">
         <span class="navbar-brand fw-bold">🚀 SMART POS SYSTEM</span>
-        <span class="text-white">Halo, <b>{{ user }}</b> | <a href="/logout" class="btn btn-sm btn-outline-danger">Keluar</a></span>
+        <span class="text-white">Halo, <b>{{ user }}</b> | <a href="#" class="btn btn-sm btn-outline-danger" onclick="confirmLogout()">Keluar</a>
+</span>
     </div>
 </nav>
 
