@@ -1,15 +1,47 @@
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date
 from werkzeug.security import generate_password_hash, check_password_hash
 from database import db
 from models import User, Product, Promo, Transaction
+
 
 app = Flask(__name__)
 app.secret_key = "kunci_rahasia_stqa_2025"
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smart_pos.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db.init_app(app)
+db = SQLAlchemy(app)
+
+# --- DATABASE MODELS ---
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(20), default='user') 
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    price = db.Column(db.Integer, nullable=False)
+    img = db.Column(db.String(10)) 
+    category = db.Column(db.String(20))
+    stock = db.Column(db.Integer, default=0)
+
+class Promo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(20), unique=True, nullable=False)
+    discount_percent = db.Column(db.Integer, nullable=False)
+
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, default=datetime.now)
+    subtotal = db.Column(db.Integer)
+    promo_info = db.Column(db.String(100))
+    total = db.Column(db.Integer) 
+    amount_paid = db.Column(db.Integer) 
+    change = db.Column(db.Integer)
+    cashier_name = db.Column(db.String(50))
 
 temp_carts = {} 
 
@@ -31,6 +63,7 @@ def index():
     elif role == 'kasir':
         return render_template('index.html', products=Product.query.all(), user=session['username'])
     elif role == 'user':
+
         # tampilkan alert JS dan redirect ke halaman login atau user dashboard
         return '''
         <script>
@@ -114,7 +147,7 @@ def get_cart():
     cart = temp_carts.get(user, {})
     items, total = [], 0
     for p_id, qty in cart.items():
-        p = db.session.get(Product, int(p_id))
+        p = Product.query.get(int(p_id))
         if p:
             sub = p.price * qty
             items.append({"id": p.id, "name": p.name, "price": p.price, "quantity": qty, "subtotal": sub})
@@ -124,7 +157,7 @@ def get_cart():
 @app.route('/api/cart/add', methods=['POST'])
 def add_to_cart():
     p_id, user = str(request.json.get('product_id')), session['username']
-    product = db.session.get(Product, int(p_id))
+    product = Product.query.get(int(p_id))
     if user not in temp_carts: temp_carts[user] = {}
     curr = temp_carts[user].get(p_id, 0)
     if product and product.stock > curr:
@@ -153,7 +186,7 @@ def checkout():
     paid, promo_code = data.get('amount_paid'), data.get('promo_code')
     if not cart: return jsonify({"message": "Keranjang kosong"}), 400
 
-    subtotal = sum(db.session.get(Product, int(pid)).price * qty for pid, qty in cart.items())
+    subtotal = sum(Product.query.get(int(pid)).price * qty for pid, qty in cart.items())
     disc_val, promo_text = 0, "-"
 
     if promo_code:
@@ -166,7 +199,7 @@ def checkout():
     if not paid or int(paid) < final: return jsonify({"message": "Uang tunai kurang"}), 400
 
     change = int(paid) - final
-    for pid, qty in cart.items(): db.session.get(Product, int(pid)).stock -= qty
+    for pid, qty in cart.items(): Product.query.get(int(pid)).stock -= qty
 
     new_tx = Transaction(
         subtotal=subtotal,
@@ -206,7 +239,7 @@ def add_product():
 @app.route('/api/admin/delete_product', methods=['POST'])
 def delete_product():
     if session.get('role') != 'admin': return jsonify({"error":"Unauthorized"}), 403
-    p = db.session.get(Product, request.json['id'])
+    p = Product.query.get(request.json['id'])
     if p:
         db.session.delete(p)
         db.session.commit()
@@ -216,7 +249,7 @@ def delete_product():
 @app.route('/api/admin/update_stock', methods=['POST'])
 def update_stock():
     if session.get('role') != 'admin': return jsonify({"error":"Unauthorized"}), 403
-    p = db.session.get(Product, request.json['id'])
+    p = Product.query.get(request.json['id'])
     new_stk = request.json.get('new_stock', 0)
     if new_stk < 0:
         return jsonify({"error": "Stok tidak boleh kurang dari 0"}), 400
@@ -235,7 +268,7 @@ def add_promo():
 @app.route('/api/admin/delete_promo', methods=['POST'])
 def delete_promo():
     if session.get('role') != 'admin': return jsonify({"error":"Unauthorized"}), 403
-    p = db.session.get(Promo, request.json['id'])
+    p = Promo.query.get(request.json['id'])
     if p:
         db.session.delete(p)
         db.session.commit()
@@ -247,7 +280,7 @@ def delete_promo():
 def set_role():
     if session.get('role') != 'admin': return jsonify({"error":"Unauthorized"}), 403
     data = request.json
-    user = db.session.get(User, data.get('user_id'))
+    user = User.query.get(data.get('user_id'))
     new_role = data.get('role')
     if user:
         user.role = new_role
