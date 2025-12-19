@@ -3,7 +3,7 @@ from models import User
 from database import db
 
 def validasi_daftar(nama_user, kata_sandi, konfirmasi_sandi):
-    """Memvalidasi input pengguna untuk pendaftaran."""
+    """memvalidasi input pengguna untuk pendaftaran."""
     if not nama_user or not kata_sandi or not konfirmasi_sandi:
         raise ValueError("Input kosong!")
     if len(kata_sandi) < 6:
@@ -15,7 +15,7 @@ def validasi_daftar(nama_user, kata_sandi, konfirmasi_sandi):
     return True
 
 def buat_user(nama_user, kata_sandi, peran='user'):
-    """Membuat dan menyimpan pengguna baru ke database."""
+    """membuat dan menyimpan pengguna baru ke database."""
     kata_sandi_hash = generate_password_hash(kata_sandi)
     user_baru = User(username=nama_user, password=kata_sandi_hash, role=peran)
     db.session.add(user_baru)
@@ -23,7 +23,7 @@ def buat_user(nama_user, kata_sandi, peran='user'):
     return user_baru
 
 def validasi_login(nama_user, kata_sandi):
-    """Memvalidasi kredensial pengguna untuk login."""
+    """memvalidasi kredensial pengguna untuk login."""
     if not nama_user or not kata_sandi:
         return None
     user = User.query.filter_by(username=nama_user).first()
@@ -32,7 +32,7 @@ def validasi_login(nama_user, kata_sandi):
     return None
 
 def atur_peran_user(id_user, peran_baru):
-    """Mengatur peran baru untuk seorang pengguna."""
+    """mengatur peran baru untuk seorang pengguna."""
     user = db.session.get(User, id_user)
     if not user:
         raise ValueError("User tidak ditemukan")

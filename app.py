@@ -1,8 +1,6 @@
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from datetime import datetime, date
 from werkzeug.security import generate_password_hash, check_password_hash
-
-# Perubahan: Impor db dari file terpisah
 from database import db
 from models import User, Product, Promo, Transaction
 
@@ -11,7 +9,6 @@ app.secret_key = "kunci_rahasia_stqa_2025"
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///smart_pos.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Perubahan: Inisialisasi db dengan app instance
 db.init_app(app)
 
 temp_carts = {} 
@@ -23,7 +20,7 @@ with app.app_context():
         db.session.add(admin)
         db.session.commit()
 
-# --- ROUTES ---
+# --- routes ---
 @app.route('/')
 def index():
     if 'username' not in session:
@@ -34,7 +31,7 @@ def index():
     elif role == 'kasir':
         return render_template('index.html', products=Product.query.all(), user=session['username'])
     elif role == 'user':
-        # Tampilkan alert JS dan redirect ke halaman login atau user dashboard
+        # tampilkan alert JS dan redirect ke halaman login atau user dashboard
         return '''
         <script>
             alert("Anda login sebagai user biasa. Mohon hubungi admin untuk akses kasir!");
@@ -75,7 +72,7 @@ def role_management():
     users = User.query.all()
     return render_template('role.html', users=users)
 
-# --- API AUTH ---
+# --- api auth ---
 @app.route('/api/signup', methods=['POST'])
 def signup():
     data = request.json
@@ -110,7 +107,7 @@ def logout():
     session.clear()
     return redirect(url_for('login_page'))
 
-# --- API KASIR & PROMO ---
+# --- api kasir dan promo ---
 @app.route('/api/cart', methods=['GET'])
 def get_cart():
     user = session.get('username')
@@ -245,7 +242,7 @@ def delete_promo():
         return jsonify({"success": True})
     return jsonify({"error": "Gagal"}), 404
 
-# --- API ROLE MANAGEMENT ---
+# --- api role management ---
 @app.route('/api/admin/set_role', methods=['POST'])
 def set_role():
     if session.get('role') != 'admin': return jsonify({"error":"Unauthorized"}), 403
