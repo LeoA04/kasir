@@ -46,7 +46,7 @@ class TestLayananOtentikasi(unittest.TestCase):
         buat_user("testuser", "securepass")
         
         # dicek user dipanggil dengan username dan role yang benar apa nggak
-        # password di-hash jadi kita ga bisa membandingkan stringnya secara langsung
+        # password dihash jadi kita ga bisa membandingkan stringnya secara langsung
         self.assertTrue(mock_user.call_args[1]['username'] == 'testuser')
         self.assertTrue('password' in mock_user.call_args[1])
 
