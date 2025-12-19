@@ -19,6 +19,8 @@ behave-html-pretty-formatter==1.15.1
 
 # Performance testing dependencies
 locust==2.42.0
+Faker==18.9.0
+requests==2.32.4
 
 # Linting
 flake8==7.3.0
