@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify, render_template, session, redirect, u
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date
 from werkzeug.security import generate_password_hash, check_password_hash
+from database import db
+from models import User, Product, Promo, Transaction
+
 
 app = Flask(__name__)
 app.secret_key = "kunci_rahasia_stqa_2025"
@@ -49,7 +52,7 @@ with app.app_context():
         db.session.add(admin)
         db.session.commit()
 
-# --- ROUTES ---
+# --- routes ---
 @app.route('/')
 def index():
     if 'username' not in session:
@@ -60,6 +63,8 @@ def index():
     elif role == 'kasir':
         return render_template('index.html', products=Product.query.all(), user=session['username'])
     elif role == 'user':
+
+        # tampilkan alert JS dan redirect ke halaman login atau user dashboard
         return '''
         <script>
             alert("Anda login sebagai user biasa. Mohon hubungi admin untuk akses kasir!");
@@ -100,7 +105,7 @@ def role_management():
     users = User.query.all()
     return render_template('role.html', users=users)
 
-# --- API AUTH ---
+# --- api auth ---
 @app.route('/api/signup', methods=['POST'])
 def signup():
     data = request.json
@@ -135,14 +140,14 @@ def logout():
     session.clear()
     return redirect(url_for('login_page'))
 
-# --- API KASIR & PROMO ---
+# --- api kasir dan promo ---
 @app.route('/api/cart', methods=['GET'])
 def get_cart():
     user = session.get('username')
     cart = temp_carts.get(user, {})
     items, total = [], 0
     for p_id, qty in cart.items():
-        p = Product.query.get(int(p_id))
+        p = db.session.get(Product, int(p_id))
         if p:
             sub = p.price * qty
             items.append({"id": p.id, "name": p.name, "price": p.price, "quantity": qty, "subtotal": sub})
@@ -152,7 +157,7 @@ def get_cart():
 @app.route('/api/cart/add', methods=['POST'])
 def add_to_cart():
     p_id, user = str(request.json.get('product_id')), session['username']
-    product = Product.query.get(int(p_id))
+    product = db.session.get(Product, int(p_id))
     if user not in temp_carts: temp_carts[user] = {}
     curr = temp_carts[user].get(p_id, 0)
     if product and product.stock > curr:
@@ -181,7 +186,7 @@ def checkout():
     paid, promo_code = data.get('amount_paid'), data.get('promo_code')
     if not cart: return jsonify({"message": "Keranjang kosong"}), 400
 
-    subtotal = sum(Product.query.get(int(pid)).price * qty for pid, qty in cart.items())
+    subtotal = sum(db.session.get(Product, int(pid)).price * qty for pid, qty in cart.items())
     disc_val, promo_text = 0, "-"
 
     if promo_code:
@@ -194,7 +199,8 @@ def checkout():
     if not paid or int(paid) < final: return jsonify({"message": "Uang tunai kurang"}), 400
 
     change = int(paid) - final
-    for pid, qty in cart.items(): Product.query.get(int(pid)).stock -= qty
+    for pid, qty in cart.items():
+        db.session.get(Product, int(pid)).stock -= qty
 
     new_tx = Transaction(
         subtotal=subtotal,
@@ -234,7 +240,7 @@ def add_product():
 @app.route('/api/admin/delete_product', methods=['POST'])
 def delete_product():
     if session.get('role') != 'admin': return jsonify({"error":"Unauthorized"}), 403
-    p = Product.query.get(request.json['id'])
+    p = db.session.get(Product, request.json['id'])
     if p:
         db.session.delete(p)
         db.session.commit()
@@ -244,7 +250,7 @@ def delete_product():
 @app.route('/api/admin/update_stock', methods=['POST'])
 def update_stock():
     if session.get('role') != 'admin': return jsonify({"error":"Unauthorized"}), 403
-    p = Product.query.get(request.json['id'])
+    p = db.session.get(Product, request.json['id'])
     new_stk = request.json.get('new_stock', 0)
     if new_stk < 0:
         return jsonify({"error": "Stok tidak boleh kurang dari 0"}), 400
@@ -263,19 +269,19 @@ def add_promo():
 @app.route('/api/admin/delete_promo', methods=['POST'])
 def delete_promo():
     if session.get('role') != 'admin': return jsonify({"error":"Unauthorized"}), 403
-    p = Promo.query.get(request.json['id'])
+    p = db.session.get(Promo, request.json['id'])
     if p:
         db.session.delete(p)
         db.session.commit()
         return jsonify({"success": True})
     return jsonify({"error": "Gagal"}), 404
 
-# --- API ROLE MANAGEMENT ---
+# --- api role management ---
 @app.route('/api/admin/set_role', methods=['POST'])
 def set_role():
     if session.get('role') != 'admin': return jsonify({"error":"Unauthorized"}), 403
     data = request.json
-    user = User.query.get(data.get('user_id'))
+    user = db.session.get(User, data.get('user_id'))
     new_role = data.get('role')
     if user:
         user.role = new_role
