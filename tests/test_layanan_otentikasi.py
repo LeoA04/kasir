@@ -1,18 +1,25 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from app import app
+from app import app, db
+from models import User
 from auth_service import validasi_daftar, buat_user, validasi_login, atur_peran_user
+from werkzeug.security import generate_password_hash
 
 class TestLayananOtentikasi(unittest.TestCase):
 
     def setUp(self):
-        """sediakan application context sebelum setiap test"""
+        """sediakan application context dan setup database test"""
+        app.config['TESTING'] = True
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
         self.konteks_app = app.app_context()
         self.konteks_app.push()
+        db.create_all()
 
     def tearDown(self):
-        """hapus application context setelah setiap test"""
+        """hapus session dan drop semua tabel"""
+        db.session.remove()
+        db.drop_all()
         self.konteks_app.pop()
 
     @patch('auth_service.User')
@@ -94,25 +101,27 @@ class TestLayananOtentikasi(unittest.TestCase):
 
         self.assertIsNone(hasil)
 
-    @patch('auth_service.db.session')
-    def test_atur_peran_user_sukses(self, mock_sesi):
-        """tes keberhasilan mengatur peran baru untuk pengguna"""
-        # buat mock user yang akan "ditemukan" oleh query
-        instance_mock_user = MagicMock()
-        instance_mock_user.role = 'user' # Role awal
-        mock_sesi.get.return_value = instance_mock_user
+    def test_atur_peran_user_sukses(self):
+        """tes keberhasilan mengatur peran baru untuk pengguna dengan database"""
+        # patch db object di dalam service agar menggunakan db instance dari test
+        with patch('auth_service.db', db):
+            # buat user di database test
+            user = User(username='testuser', password=generate_password_hash('password'), role='user')
+            db.session.add(user)
+            db.session.commit()
+            user_id = user.id
 
-        # panggil fungsi yang diuji
-        atur_peran_user(1, 'admin')
+            # panggil fungsi yang diuji
+            atur_peran_user(user_id, 'admin')
+            user_yang_diubah = db.session.get(User, user_id)
+            
+            # verifikasi bahwa role pada user sudah diubah
+            self.assertIsNotNone(user_yang_diubah)
+            self.assertEqual(user_yang_diubah.role, 'admin')
 
-        # verifikasi bahwa role pada instance user sdh diubah
-        self.assertEqual(instance_mock_user.role, 'admin')
-        # verifikasi perubahan di commit ke database
-        mock_sesi.commit.assert_called_once()
-
-    @patch('auth_service.db.session')
-    def test_atur_peran_user_tidak_ditemukan(self, mock_sesi):
-        """tes kegagalan pengaturan peran saat pengguna tidak ditemukan"""
-        mock_sesi.get.return_value = None
-        with self.assertRaisesRegex(ValueError, "User tidak ditemukan"):
-            atur_peran_user(999, 'kasir')
+    def test_atur_peran_user_tidak_ditemukan(self):
+        """tes kegagalan pengaturan peran saat pengguna tidak ditemukan dengan database"""
+        # patch db object di dalam service agar menggunakan db instance dari test
+        with patch('auth_service.db', db):
+            with self.assertRaisesRegex(ValueError, "User tidak ditemukan"):
+                atur_peran_user(999, 'kasir')

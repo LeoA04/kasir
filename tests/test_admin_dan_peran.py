@@ -85,10 +85,11 @@ class TestAdminDanPeran(unittest.TestCase):
         produk_baru = Product(name='To Be Deleted', price=100)
         db.session.add(produk_baru)
         db.session.commit()
+        produk_id = produk_baru.id # simpan id sebelum objek dihapus
 
-        respons = self.client.post('/api/admin/delete_product', json={'id': produk_baru.id})
+        respons = self.client.post('/api/admin/delete_product', json={'id': produk_id})
         self.assertEqual(respons.status_code, 200)
-        produk = db.session.get(Product, produk_baru.id) # menggunakan db.session.get
+        produk = db.session.get(Product, produk_id) # pakai id yang disimpan untuk verifikasi
         self.assertIsNone(produk)
 
     def test_admin_bisa_update_stok(self):
@@ -117,10 +118,11 @@ class TestAdminDanPeran(unittest.TestCase):
         promo = Promo(code='HAPUS', discount_percent=10)
         db.session.add(promo)
         db.session.commit()
+        promo_id = promo.id # simpan id sebelum objek dihapus
 
-        respons = self.client.post('/api/admin/delete_promo', json={'id': promo.id})
+        respons = self.client.post('/api/admin/delete_promo', json={'id': promo_id})
         self.assertEqual(respons.status_code, 200)
-        self.assertIsNone(db.session.get(Promo, promo.id)) # menggunakan db.session.get
+        self.assertIsNone(db.session.get(Promo, promo_id)) # pakai id yang disimpan untuk verifikasi
 
     def test_admin_bisa_atur_peran_user(self):
         """admin seharusnya bisa mengubah peran pengguna lain"""
@@ -128,11 +130,12 @@ class TestAdminDanPeran(unittest.TestCase):
         user_yang_diubah = User.query.filter_by(username='user_test').first()
         self.assertEqual(user_yang_diubah.role, 'user') # verifikasi peran awal
 
-        respons = self.client.post('/api/admin/set_role', json={'user_id': user_yang_diubah.id, 'role': 'kasir'})
+        user_id = user_yang_diubah.id
+        respons = self.client.post('/api/admin/set_role', json={'user_id': user_id, 'role': 'kasir'})
         self.assertEqual(respons.status_code, 200)
 
-        db.session.refresh(user_yang_diubah) # refresh objek dari db
-        self.assertEqual(user_yang_diubah.role, 'kasir') # verifikasi peran baru
+        user_updated = db.session.get(User, user_id) # ambil ulang objek dari db
+        self.assertEqual(user_updated.role, 'kasir') # verifikasi peran baru
 
 if __name__ == '__main__':
     unittest.main()
